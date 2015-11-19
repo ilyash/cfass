@@ -1,0 +1,206 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Outputs:
+  ElbProdId:
+    Value: {Ref: ELBProd}
+  ElbStagingId:
+    Value: {Ref: ELBStaging}
+  VpcId:
+    Value: {Ref: Vpc}
+Resources:
+  AWS::CloudFront::Distribution CFProdVideosDistribution:
+    DistributionConfig:
+      Aliases: [prod-videos.CENSORED.com]
+      Comment: Production Videos
+      DefaultCacheBehavior:
+        AllowedMethods: [GET, HEAD, OPTIONS]
+        ForwardedValues: {QueryString: false}
+        MinTTL: 3600
+        TargetOriginId: ProdVideosOrigin
+        ViewerProtocolPolicy: https-only
+      Enabled: true
+      Origins:
+      - DomainName: CENSORED-videos-prod.s3.amazonaws.com
+        Id: ProdVideosOrigin
+        S3OriginConfig: {}
+  AWS::CloudFront::Distribution CFStagingVideosDistribution:
+    DistributionConfig:
+      Aliases: [staging-videos.CENSORED.com]
+      Comment: Staging Videos
+      DefaultCacheBehavior:
+        AllowedMethods: [GET, HEAD, OPTIONS]
+        ForwardedValues: {QueryString: false}
+        MinTTL: 3600
+        TargetOriginId: StagingVideosOrigin
+        ViewerProtocolPolicy: https-only
+      Enabled: true
+      Origins:
+      - DomainName: CENSORED-videos-staging.s3.amazonaws.com
+        Id: StagingVideosOrigin
+        S3OriginConfig: {}
+  AWS::EC2::InternetGateway GW: {}
+  AWS::EC2::Route InternetRoute:
+    DestinationCidrBlock: 0.0.0.0/0
+    GatewayId: {Ref: GW}
+    RouteTableId: {Ref: RouteTable}
+  AWS::EC2::RouteTable RouteTable:
+    VpcId: {Ref: Vpc}
+  AWS::EC2::Subnet NetworkFrontAZ0:
+    AvailabilityZone: us-east-1b
+    CidrBlock: 172.16.0.0/18
+    Tags: {Name: Front0, net-az: 0, net-name: Front}
+    VpcId: {Ref: Vpc}
+  AWS::EC2::Subnet NetworkFrontAZ1:
+    AvailabilityZone: us-east-1d
+    CidrBlock: 172.16.64.0/18
+    Tags: {Name: Front1, net-az: 1, net-name: Front}
+    VpcId: {Ref: Vpc}
+  AWS::EC2::SubnetRouteTableAssociation NetworkFrontAZ0RouteAssoc:
+    RouteTableId: {Ref: RouteTable}
+    SubnetId: {Ref: NetworkFrontAZ0}
+  AWS::EC2::SubnetRouteTableAssociation NetworkFrontAZ1RouteAssoc:
+    RouteTableId: {Ref: RouteTable}
+    SubnetId: {Ref: NetworkFrontAZ1}
+  AWS::EC2::VPC Vpc: {CidrBlock: 172.16.0.0/16, EnableDnsHostnames: true, EnableDnsSupport: true}
+  AWS::EC2::VPCGatewayAttachment VpcGW:
+    InternetGatewayId: {Ref: GW}
+    VpcId: {Ref: Vpc}
+  AWS::ElasticLoadBalancing::LoadBalancer ELBBuild:
+    AvailabilityZones: [us-east-1b, us-east-1d]
+    ConnectionDrainingPolicy: {Enabled: true, Timeout: 60}
+    ConnectionSettings: {IdleTimeout: 60}
+    CrossZone: true
+    HealthCheck: {HealthyThreshold: 5, Interval: 5, Target: 'TCP:8080', Timeout: 4,
+      UnhealthyThreshold: 5}
+    Listeners:
+    - InstancePort: 8080
+      InstanceProtocol: HTTP
+      LoadBalancerPort: 443
+      PolicyNames: [ELBSecurityPolicy-2015-05]
+      Protocol: HTTPS
+      SSLCertificateId: arn:aws:iam::CENSORED:server-certificate/non-prod-star-CENSORED-me-2015
+    LoadBalancerName: build
+    Scheme: internet-facing
+  AWS::ElasticLoadBalancing::LoadBalancer ELBNPM:
+    ConnectionDrainingPolicy: {Enabled: true, Timeout: 60}
+    ConnectionSettings: {IdleTimeout: 60}
+    CrossZone: true
+    HealthCheck: {HealthyThreshold: 5, Interval: 5, Target: 'TCP:4783', Timeout: 4,
+      UnhealthyThreshold: 5}
+    Listeners:
+    - InstancePort: 4783
+      InstanceProtocol: HTTP
+      LoadBalancerPort: 443
+      PolicyNames: [ELBSecurityPolicy-2015-05]
+      Protocol: HTTPS
+      SSLCertificateId: arn:aws:iam::CENSORED:server-certificate/non-prod-star-CENSORED-me-2015
+    LoadBalancerName: npm
+    Scheme: internet-facing
+    Subnets:
+    - {Ref: NetworkFrontAZ0}
+    - {Ref: NetworkFrontAZ1}
+  AWS::ElasticLoadBalancing::LoadBalancer ELBProd:
+    ConnectionDrainingPolicy: {Enabled: true, Timeout: 60}
+    ConnectionSettings: {IdleTimeout: 60}
+    CrossZone: true
+    HealthCheck: {HealthyThreshold: 5, Interval: 5, Target: 'TCP:82', Timeout: 4,
+      UnhealthyThreshold: 5}
+    Listeners:
+    - {InstancePort: 80, InstanceProtocol: HTTP, LoadBalancerPort: 80, Protocol: HTTP}
+    - InstancePort: 82
+      InstanceProtocol: HTTP
+      LoadBalancerPort: 443
+      PolicyNames: [ELBSecurityPolicy-2015-05]
+      Protocol: HTTPS
+      SSLCertificateId: arn:aws:iam::CENSORED:server-certificate/non-prod-star-CENSORED-me-2015
+    LoadBalancerName: vpc-all-in-one-prod
+    Scheme: internet-facing
+    Subnets:
+    - {Ref: NetworkFrontAZ0}
+    - {Ref: NetworkFrontAZ1}
+  AWS::ElasticLoadBalancing::LoadBalancer ELBProd2:
+    ConnectionDrainingPolicy: {Enabled: true, Timeout: 60}
+    ConnectionSettings: {IdleTimeout: 60}
+    CrossZone: true
+    HealthCheck: {HealthyThreshold: 5, Interval: 5, Target: 'TCP:82', Timeout: 4,
+      UnhealthyThreshold: 5}
+    Listeners:
+    - {InstancePort: 80, InstanceProtocol: HTTP, LoadBalancerPort: 80, Protocol: HTTP}
+    - InstancePort: 82
+      InstanceProtocol: HTTP
+      LoadBalancerPort: 443
+      PolicyNames: [ELBSecurityPolicy-2015-05]
+      Protocol: HTTPS
+      SSLCertificateId: arn:aws:iam::CENSORED:server-certificate/prod-star-CENSORED-com-2015
+    LoadBalancerName: prod
+    Scheme: internet-facing
+    Subnets:
+    - {Ref: NetworkFrontAZ0}
+    - {Ref: NetworkFrontAZ1}
+  AWS::ElasticLoadBalancing::LoadBalancer ELBRepo:
+    AvailabilityZones: [us-east-1b, us-east-1d]
+    ConnectionDrainingPolicy: {Enabled: true, Timeout: 60}
+    ConnectionSettings: {IdleTimeout: 60}
+    CrossZone: true
+    HealthCheck: {HealthyThreshold: 5, Interval: 5, Target: 'TCP:8080', Timeout: 4,
+      UnhealthyThreshold: 5}
+    Listeners:
+    - InstancePort: 8080
+      InstanceProtocol: HTTP
+      LoadBalancerPort: 443
+      PolicyNames: [ELBSecurityPolicy-2015-05]
+      Protocol: HTTPS
+      SSLCertificateId: arn:aws:iam::CENSORED:server-certificate/non-prod-star-CENSORED-me-2015
+    LoadBalancerName: repo
+    Scheme: internet-facing
+  AWS::ElasticLoadBalancing::LoadBalancer ELBStaging:
+    ConnectionDrainingPolicy: {Enabled: true, Timeout: 60}
+    ConnectionSettings: {IdleTimeout: 60}
+    CrossZone: true
+    HealthCheck: {HealthyThreshold: 5, Interval: 5, Target: 'TCP:82', Timeout: 4,
+      UnhealthyThreshold: 5}
+    Listeners:
+    - {InstancePort: 80, InstanceProtocol: HTTP, LoadBalancerPort: 80, Protocol: HTTP}
+    - InstancePort: 82
+      InstanceProtocol: HTTP
+      LoadBalancerPort: 443
+      PolicyNames: [ELBSecurityPolicy-2015-05]
+      Protocol: HTTPS
+      SSLCertificateId: arn:aws:iam::CENSORED:server-certificate/non-prod-star-CENSORED-me-2015
+    LoadBalancerName: vpc-all-in-one-staging
+    Scheme: internet-facing
+    Subnets:
+    - {Ref: NetworkFrontAZ0}
+    - {Ref: NetworkFrontAZ1}
+  AWS::ElasticLoadBalancing::LoadBalancer ELBStaging2:
+    ConnectionDrainingPolicy: {Enabled: true, Timeout: 60}
+    ConnectionSettings: {IdleTimeout: 60}
+    CrossZone: true
+    HealthCheck: {HealthyThreshold: 5, Interval: 5, Target: 'TCP:82', Timeout: 4,
+      UnhealthyThreshold: 5}
+    Listeners:
+    - {InstancePort: 80, InstanceProtocol: HTTP, LoadBalancerPort: 80, Protocol: HTTP}
+    - InstancePort: 82
+      InstanceProtocol: HTTP
+      LoadBalancerPort: 443
+      PolicyNames: [ELBSecurityPolicy-2015-05]
+      Protocol: HTTPS
+      SSLCertificateId: arn:aws:iam::CENSORED:server-certificate/prod-star-CENSORED-com-2015
+    LoadBalancerName: staging
+    Scheme: internet-facing
+    Subnets:
+    - {Ref: NetworkFrontAZ0}
+    - {Ref: NetworkFrontAZ1}
+  AWS::IAM::InstanceProfile PMSDProfile:
+    Path: /instance-lister/
+    Roles:
+    - {Ref: PMSDRole}
+  AWS::IAM::Role PMSDRole:
+    AssumeRolePolicyDocument:
+      Statement:
+      - Action: ['sts:AssumeRole']
+        Effect: Allow
+        Principal:
+          Service: [ec2.amazonaws.com]
+      Version: '2012-10-17'
+    ManagedPolicyArns: ['arn:aws:iam::aws:policy/AmazonEC2ReadOnlyAccess']
+    Path: /instance-lister/
